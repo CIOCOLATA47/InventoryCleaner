@@ -1,4 +1,4 @@
 # InventoryCleaner
 Inventory Cleaner is a useful mod that automates the task of throwing away junk and useless items from your inventory.
 # Items
-If you would like any item to be added or removed as a junk item you can pull a request or make an issue.
+Those are the item that will be thrown:dirt,spider_eye,gravel,rotten_flesh,ink_sac,dead_bush,snowball,cobweb,wheat_seeds,golden_horse_armor,dandelion,rose_bush,lily_pad,poisonous_potato,string,pufferfish.
