@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "inventorycleaner",
+  "version": "${version}",
+  "name": "InventoryCleaner",
+  "description": "A mod that automatically throws away junk items",
+  "authors": [
+    "Ciocolata47"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "me.cioco.inventorycleaner.Main"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": ">=${minecraft_version}"
+  }
+}
