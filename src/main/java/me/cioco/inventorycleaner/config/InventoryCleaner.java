@@ -59,7 +59,7 @@ public class InventoryCleaner implements ClientModInitializer {
             properties.load(input);
 
             for (String itemIdentifier : properties.stringPropertyNames()) {
-                Identifier itemId = new Identifier(itemIdentifier);
+                Identifier itemId = Identifier.of(itemIdentifier);
                 Item item = Registries.ITEM.get(itemId);
                 itemsToThrow.add(item);
             }
