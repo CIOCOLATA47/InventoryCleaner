@@ -8,5 +8,3 @@ https://modrinth.com/mod/inventorycleaner
 Inventory Cleaner is a useful mod that automates the task of throwing away junk items from your inventory.
 ## Contributing
 Feel free to open issues or pull requests for bug fixes or improvements.
-# Modrinth link / download link
-https://modrinth.com/mod/inventorycleaner
