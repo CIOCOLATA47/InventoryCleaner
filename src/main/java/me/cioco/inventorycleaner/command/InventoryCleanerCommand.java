@@ -1,6 +1,7 @@
 package me.cioco.inventorycleaner.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import me.cioco.inventorycleaner.config.InventoryCleaner;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -13,10 +14,9 @@ import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-
 public class InventoryCleanerCommand {
     private static final MinecraftClient mc = MinecraftClient.getInstance();
-    private static  PlayerEntity player = mc.player;
+    private static PlayerEntity player = mc.player;
     private static InventoryCleaner inventoryCleaner;
 
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher, InventoryCleaner cleaner) {
@@ -31,6 +31,16 @@ public class InventoryCleanerCommand {
                 .then(ClientCommandManager.literal("delitem")
                         .then(ClientCommandManager.argument("item", IdentifierArgumentType.identifier())
                                 .executes(InventoryCleanerCommand::removeItem))));
+
+        dispatcher.register(ClientCommandManager.literal("ic")
+                .then(ClientCommandManager.literal("lockslot")
+                        .then(ClientCommandManager.argument("slot", IntegerArgumentType.integer())
+                                .executes(InventoryCleanerCommand::lockSlot))));
+
+        dispatcher.register(ClientCommandManager.literal("ic")
+                .then(ClientCommandManager.literal("unlockslot")
+                        .then(ClientCommandManager.argument("slot", IntegerArgumentType.integer())
+                                .executes(InventoryCleanerCommand::unlockSlot))));
     }
 
     private static int addItem(CommandContext<FabricClientCommandSource> context) {
@@ -64,6 +74,20 @@ public class InventoryCleanerCommand {
         } else {
             player.sendMessage(Text.of("Invalid item ID: " + itemId), false);
         }
+        return 1;
+    }
+
+    private static int lockSlot(CommandContext<FabricClientCommandSource> context) {
+        int slotId = context.getArgument("slot", Integer.class);
+        inventoryCleaner.lockSlot(slotId);
+        player.sendMessage(Text.of("Slot " + slotId + " is now locked."), false);
+        return 1;
+    }
+
+    private static int unlockSlot(CommandContext<FabricClientCommandSource> context) {
+        int slotId = context.getArgument("slot", Integer.class);
+        inventoryCleaner.unlockSlot(slotId);
+        player.sendMessage(Text.of("Slot " + slotId + " is now unlocked."), false);
         return 1;
     }
 }

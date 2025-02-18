@@ -25,6 +25,7 @@ public class InventoryCleaner implements ClientModInitializer {
     private static final String CONFIG_FILE = "inventory-cleaner.properties";
     private boolean isEnabled = true;
     private final Set<Item> itemsToThrow = new HashSet<>();
+    private final Set<Integer> lockedSlots = new HashSet<>();
 
     @Override
     public void onInitializeClient() {
@@ -47,6 +48,18 @@ public class InventoryCleaner implements ClientModInitializer {
 
     public boolean isItemInThrowList(Item item) {
         return itemsToThrow.contains(item);
+    }
+
+    public void lockSlot(int slotId) {
+        lockedSlots.add(slotId);
+    }
+
+    public void unlockSlot(int slotId) {
+        lockedSlots.remove(slotId);
+    }
+
+    public boolean isSlotLocked(int slotId) {
+        return lockedSlots.contains(slotId);
     }
 
     private void loadConfiguration() {
@@ -97,6 +110,10 @@ public class InventoryCleaner implements ClientModInitializer {
             PlayerScreenHandler screenHandler = client.player.playerScreenHandler;
 
             for (Slot slot : screenHandler.slots) {
+                if (isSlotLocked(slot.id)) {
+                    continue;
+                }
+
                 ItemStack itemStack = slot.getStack();
 
                 if (!itemStack.isEmpty() && itemsToThrow.contains(itemStack.getItem())) {
