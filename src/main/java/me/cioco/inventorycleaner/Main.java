@@ -26,7 +26,7 @@ public class Main implements ModInitializer {
         keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key." + MOD_ID + ".toggle",
                 InputUtil.UNKNOWN_KEY.getCode(),
-                "key.categories." + MOD_ID
+                KeyBinding.Category.MISC
         ));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.world != null && client.player != null) {
