@@ -1,6 +1,7 @@
 package me.cioco.inventorycleaner.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import me.cioco.inventorycleaner.config.InventoryCleaner;
@@ -8,71 +9,89 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.command.argument.IdentifierArgumentType;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
-import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+
 public class InventoryCleanerCommand {
     private static final MinecraftClient mc = MinecraftClient.getInstance();
-    private static PlayerEntity player = mc.player;
     private static InventoryCleaner inventoryCleaner;
 
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher, InventoryCleaner cleaner) {
         inventoryCleaner = cleaner;
 
-        dispatcher.register(ClientCommandManager.literal("ic")
-                .then(ClientCommandManager.literal("additem")
-                        .then(ClientCommandManager.argument("item", IdentifierArgumentType.identifier())
-                                .executes(InventoryCleanerCommand::addItem))));
+        var root = ClientCommandManager.literal("ic");
 
-        dispatcher.register(ClientCommandManager.literal("ic")
-                .then(ClientCommandManager.literal("delitem")
-                        .then(ClientCommandManager.argument("item", IdentifierArgumentType.identifier())
-                                .executes(InventoryCleanerCommand::removeItem))));
+        root.then(ClientCommandManager.literal("additem")
+                .then(ClientCommandManager.argument("item", IdentifierArgumentType.identifier())
+                        .executes(InventoryCleanerCommand::addItem)));
 
-        dispatcher.register(ClientCommandManager.literal("ic")
-                .then(ClientCommandManager.literal("lockslot")
-                        .then(ClientCommandManager.argument("slot", IntegerArgumentType.integer())
-                                .executes(InventoryCleanerCommand::lockSlot))));
+        root.then(ClientCommandManager.literal("delitem")
+                .then(ClientCommandManager.argument("item", IdentifierArgumentType.identifier())
+                        .executes(InventoryCleanerCommand::removeItem)));
 
-        dispatcher.register(ClientCommandManager.literal("ic")
-                .then(ClientCommandManager.literal("unlockslot")
-                        .then(ClientCommandManager.argument("slot", IntegerArgumentType.integer())
-                                .executes(InventoryCleanerCommand::unlockSlot))));
+        root.then(ClientCommandManager.literal("lockslot")
+                .then(ClientCommandManager.argument("slot", IntegerArgumentType.integer())
+                        .executes(InventoryCleanerCommand::lockSlot)));
+
+        root.then(ClientCommandManager.literal("unlockslot")
+                .then(ClientCommandManager.argument("slot", IntegerArgumentType.integer())
+                        .executes(InventoryCleanerCommand::unlockSlot)));
+
+        root.then(ClientCommandManager.literal("list")
+                .executes(InventoryCleanerCommand::listItems));
+
+        root.then(ClientCommandManager.literal("config")
+                .then(ClientCommandManager.literal("save")
+                        .then(ClientCommandManager.argument("name", StringArgumentType.string())
+                                .executes(InventoryCleanerCommand::saveConfig)))
+                .then(ClientCommandManager.literal("load")
+                        .then(ClientCommandManager.argument("name", StringArgumentType.string())
+                                .executes(InventoryCleanerCommand::loadConfig))));
+
+        dispatcher.register(root);
     }
 
     private static int addItem(CommandContext<FabricClientCommandSource> context) {
+        var player = mc.player;
         Identifier itemId = context.getArgument("item", Identifier.class);
         Item item = Registries.ITEM.get(itemId);
-        if (item != Items.AIR) {
-            if (!inventoryCleaner.isItemInThrowList(item)) {
-                inventoryCleaner.addItemToThrow(item);
-                inventoryCleaner.saveConfiguration();
-                player.sendMessage(Text.of("Added item to InventoryCleaner: " + itemId), false);
-            } else {
-                player.sendMessage(Text.of("Item already added to InventoryCleaner: " + itemId), false);
-            }
+
+        if (item == null) {
+            player.sendMessage(Text.of("§cInvalid item ID: " + itemId), false);
+            return 0;
+        }
+
+        if (inventoryCleaner.isItemInThrowList(item)) {
+            player.sendMessage(Text.of("§eAlready added: " + itemId), false);
         } else {
-            player.sendMessage(Text.of("Invalid item ID: " + itemId), false);
+            inventoryCleaner.addItemToThrow(item);
+            inventoryCleaner.saveConfiguration();
+            player.sendMessage(Text.of("§aAdded: " + itemId), false);
         }
         return 1;
     }
 
     private static int removeItem(CommandContext<FabricClientCommandSource> context) {
+        var player = mc.player;
         Identifier itemId = context.getArgument("item", Identifier.class);
         Item item = Registries.ITEM.get(itemId);
-        if (item != Items.AIR) {
-            if (inventoryCleaner.isItemInThrowList(item)) {
-                inventoryCleaner.removeItemToThrow(item);
-                inventoryCleaner.saveConfiguration();
-                player.sendMessage(Text.of("Removed item from InventoryCleaner: " + itemId), false);
-            } else {
-                player.sendMessage(Text.of("Item not found in InventoryCleaner: " + itemId), false);
-            }
+
+        if (item == null) {
+            player.sendMessage(Text.of("§cInvalid item ID: " + itemId), false);
+            return 0;
+        }
+
+        if (inventoryCleaner.isItemInThrowList(item)) {
+            inventoryCleaner.removeItemToThrow(item);
+            inventoryCleaner.saveConfiguration();
+            player.sendMessage(Text.of("§aRemoved: " + itemId), false);
         } else {
-            player.sendMessage(Text.of("Invalid item ID: " + itemId), false);
+            player.sendMessage(Text.of("§eItem not found: " + itemId), false);
         }
         return 1;
     }
@@ -80,14 +99,61 @@ public class InventoryCleanerCommand {
     private static int lockSlot(CommandContext<FabricClientCommandSource> context) {
         int slotId = context.getArgument("slot", Integer.class);
         inventoryCleaner.lockSlot(slotId);
-        player.sendMessage(Text.of("Slot " + slotId + " is now locked."), false);
+        mc.player.sendMessage(Text.of("§6Slot " + slotId + " locked."), false);
+        inventoryCleaner.saveConfiguration();
         return 1;
     }
 
     private static int unlockSlot(CommandContext<FabricClientCommandSource> context) {
         int slotId = context.getArgument("slot", Integer.class);
         inventoryCleaner.unlockSlot(slotId);
-        player.sendMessage(Text.of("Slot " + slotId + " is now unlocked."), false);
+        mc.player.sendMessage(Text.of("§eSlot " + slotId + " unlocked."), false);
+        inventoryCleaner.saveConfiguration();
+        return 1;
+    }
+
+    private static int listItems(CommandContext<FabricClientCommandSource> context) {
+        var player = mc.player;
+        Set<Item> items = inventoryCleaner.getItemsToThrow();
+        Set<Integer> locked = inventoryCleaner.getLockedSlots();
+
+        if (items.isEmpty() && locked.isEmpty()) {
+            player.sendMessage(Text.of("§7No items or locked slots configured."), false);
+            return 1;
+        }
+
+        if (!items.isEmpty()) {
+            String itemList = items.stream()
+                    .map(i -> Registries.ITEM.getId(i).toString())
+                    .collect(Collectors.joining(", "));
+            player.sendMessage(Text.of("§aThrow List: §f" + itemList), false);
+        }
+
+        if (!locked.isEmpty()) {
+            String lockedList = locked.stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(", "));
+            player.sendMessage(Text.of("§6Locked Slots: §f" + lockedList), false);
+        }
+
+        return 1;
+    }
+
+    private static int saveConfig(CommandContext<FabricClientCommandSource> context) {
+        String name = context.getArgument("name", String.class);
+        inventoryCleaner.saveConfiguration(name);
+        mc.player.sendMessage(Text.of("§aSaved configuration as '" + name + "'."), false);
+        return 1;
+    }
+
+    private static int loadConfig(CommandContext<FabricClientCommandSource> context) {
+        String name = context.getArgument("name", String.class);
+        boolean success = inventoryCleaner.loadConfiguration(name);
+        if (success) {
+            mc.player.sendMessage(Text.of("§aLoaded configuration '" + name + "'."), false);
+        } else {
+            mc.player.sendMessage(Text.of("§cCould not find configuration '" + name + "'."), false);
+        }
         return 1;
     }
 }
