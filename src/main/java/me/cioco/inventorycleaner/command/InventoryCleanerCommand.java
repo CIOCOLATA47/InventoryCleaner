@@ -1,6 +1,7 @@
 package me.cioco.inventorycleaner.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -53,8 +54,28 @@ public class InventoryCleanerCommand {
                         .then(ClientCommandManager.argument("name", StringArgumentType.string())
                                 .executes(InventoryCleanerCommand::loadConfig))));
 
+        root.then(ClientCommandManager.literal("delay")
+                .then(ClientCommandManager.argument("seconds", DoubleArgumentType.doubleArg(0.01))
+                        .executes(InventoryCleanerCommand::setDelay)));
+
         dispatcher.register(root);
     }
+
+    private static int setDelay(CommandContext<FabricClientCommandSource> context) {
+        double seconds = context.getArgument("seconds", Double.class);
+
+        int ticks = Math.max(1, (int) Math.round(seconds * 20.0));
+
+        inventoryCleaner.setThrowDelayTicks(ticks);
+        inventoryCleaner.saveConfiguration();
+
+        mc.player.sendMessage(
+                Text.of("§aInventoryCleaner delay set to §f" + seconds + " §aseconds (§f" + ticks + " ticks§a)."),
+                false
+        );
+        return 1;
+    }
+
 
     private static int addItem(CommandContext<FabricClientCommandSource> context) {
         var player = mc.player;

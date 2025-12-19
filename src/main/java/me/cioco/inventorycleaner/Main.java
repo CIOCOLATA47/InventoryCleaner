@@ -10,52 +10,53 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
+
+import static me.cioco.inventorycleaner.config.InventoryCleaner.toggled;
 
 public class Main implements ModInitializer {
+
     public static final String MOD_ID = "inventorycleaner";
     public static KeyBinding keyBinding;
-    public static boolean toggled = false;
+
     private InventoryCleaner inventoryCleaner;
+
+    public static final KeyBinding.Category CATEGORY_INVCLEANER =
+            KeyBinding.Category.create(Identifier.of("inventorycleaner", "key_category"));
 
     @Override
     public void onInitialize() {
+
         inventoryCleaner = new InventoryCleaner();
-        inventoryCleaner.setEnabled(false);
         inventoryCleaner.onInitializeClient();
+
         addCommands();
+
         keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key." + MOD_ID + ".toggle",
                 InputUtil.UNKNOWN_KEY.getCode(),
-                KeyBinding.Category.MISC
+                CATEGORY_INVCLEANER
         ));
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.world != null && client.player != null) {
-                if (client.world.getTime() == 1) {
-                    toggled = false;
-                    inventoryCleaner.setEnabled(false);
-                    client.player.sendMessage(Text
-                                    .literal("InventoryCleaner: ")
-                                    .append(Text
-                                            .literal("Disabled")
-                                            .formatted(Formatting.RED)),
-                            false);
-                }
 
-                if (keyBinding.wasPressed()) {
-                    toggled = !toggled;
-                    inventoryCleaner.setEnabled(toggled);
-                    client.player.sendMessage(Text
-                                    .literal("InventoryCleaner: ")
-                                    .append(Text
-                                            .literal(toggled ? "Enabled" : "Disabled")
-                                            .formatted(toggled ? Formatting.GREEN : Formatting.RED)),
-                            false);
-                }
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.player == null) return;
+            if (keyBinding.wasPressed()) {
+                toggled = !toggled;
+                inventoryCleaner.saveConfiguration();
+                client.player.sendMessage(
+                        Text.literal("InventoryCleaner: ")
+                                .append(Text.literal(toggled ? "Enabled" : "Disabled")
+                                        .formatted(toggled ? Formatting.GREEN : Formatting.RED)),
+                        false
+                );
             }
         });
     }
 
     private void addCommands() {
-        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> InventoryCleanerCommand.register(dispatcher, inventoryCleaner));
+        ClientCommandRegistrationCallback.EVENT.register(
+                (dispatcher, registryAccess) ->
+                        InventoryCleanerCommand.register(dispatcher, inventoryCleaner)
+        );
     }
 }

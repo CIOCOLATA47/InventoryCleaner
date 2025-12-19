@@ -4,6 +4,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
@@ -22,10 +23,12 @@ import java.util.Properties;
 import java.util.Set;
 
 public class InventoryCleaner implements ClientModInitializer {
+
     private static final String DEFAULT_CONFIG_NAME = "default";
-    private boolean isEnabled = true;
+    public static boolean toggled = false;
     private final Set<Item> itemsToThrow = new HashSet<>();
     private final Set<Integer> lockedSlots = new HashSet<>();
+    private int throwDelayTicks = 20;
 
     private int tickCounter = 0;
 
@@ -34,7 +37,7 @@ public class InventoryCleaner implements ClientModInitializer {
         loadConfiguration(DEFAULT_CONFIG_NAME);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (isEnabled && client.player != null) {
+            if (toggled && client.player != null) {
                 cleanInventory(client);
             }
         });
@@ -46,14 +49,6 @@ public class InventoryCleaner implements ClientModInitializer {
 
     public Set<Integer> getLockedSlots() {
         return lockedSlots;
-    }
-
-    public boolean isEnabled() {
-        return isEnabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.isEnabled = enabled;
     }
 
     public void addItemToThrow(Item item) {
@@ -80,6 +75,14 @@ public class InventoryCleaner implements ClientModInitializer {
         return lockedSlots.contains(slotId);
     }
 
+    public void setThrowDelayTicks(int ticks) {
+        this.throwDelayTicks = Math.max(1, ticks);
+    }
+
+    public int getThrowDelayTicks() {
+        return throwDelayTicks;
+    }
+
     public void saveConfiguration() {
         saveConfiguration(DEFAULT_CONFIG_NAME);
     }
@@ -91,13 +94,15 @@ public class InventoryCleaner implements ClientModInitializer {
             Path configPath = configDir.resolve(name + ".properties");
 
             Properties properties = new Properties();
+            properties.setProperty("toggled", Boolean.toString(toggled));
+            properties.setProperty("delay", String.valueOf(throwDelayTicks));
 
             for (Item item : itemsToThrow) {
-                Identifier itemId = Registries.ITEM.getId(item);
-                properties.setProperty(itemId.toString(), "true");
+                properties.setProperty(Registries.ITEM.getId(item).toString(), "true");
             }
-            for (Integer slotId : lockedSlots) {
-                properties.setProperty("lock_" + slotId, "true");
+
+            for (Integer slot : lockedSlots) {
+                properties.setProperty("lock_" + slot, "true");
             }
 
             try (OutputStream output = Files.newOutputStream(configPath)) {
@@ -111,9 +116,7 @@ public class InventoryCleaner implements ClientModInitializer {
 
     public boolean loadConfiguration(String name) {
         Path configPath = getConfigDir().resolve(name + ".properties");
-        if (!Files.exists(configPath)) {
-            return false;
-        }
+        if (!Files.exists(configPath)) return false;
 
         itemsToThrow.clear();
         lockedSlots.clear();
@@ -122,20 +125,34 @@ public class InventoryCleaner implements ClientModInitializer {
             Properties properties = new Properties();
             properties.load(input);
 
+            if (properties.containsKey("toggled")) {
+                toggled = Boolean.parseBoolean(properties.getProperty("toggled"));
+            }
+
+            if (properties.containsKey("delay")) {
+                try {
+                    throwDelayTicks = Integer.parseInt(properties.getProperty("delay"));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+
             for (String key : properties.stringPropertyNames()) {
+                if (key.equals("toggled") || key.equals("delay")) continue;
+
                 if (key.startsWith("lock_")) {
                     try {
-                        int slot = Integer.parseInt(key.substring(5));
-                        lockedSlots.add(slot);
-                    } catch (NumberFormatException ignored) {}
+                        lockedSlots.add(Integer.parseInt(key.substring(5)));
+                    } catch (NumberFormatException ignored) {
+                    }
                 } else {
-                    Identifier itemId = Identifier.of(key);
-                    if (Registries.ITEM.containsId(itemId)) {
-                        itemsToThrow.add(Registries.ITEM.get(itemId));
+                    Identifier id = Identifier.of(key);
+                    if (Registries.ITEM.containsId(id)) {
+                        itemsToThrow.add(Registries.ITEM.get(id));
                     }
                 }
             }
             return true;
+
         } catch (IOException e) {
             e.printStackTrace();
             return false;
@@ -147,20 +164,26 @@ public class InventoryCleaner implements ClientModInitializer {
     }
 
     private void cleanInventory(MinecraftClient client) {
-        if (++tickCounter % 10 != 0) return;
+        if (++tickCounter % throwDelayTicks != 0) return;
+        if (tickCounter > 100000) tickCounter = 0;
 
-        PlayerScreenHandler screenHandler = client.player.playerScreenHandler;
+        PlayerScreenHandler handler = client.player.playerScreenHandler;
 
-        for (Slot slot : screenHandler.slots) {
-            if (slot.id < 9 || slot.id > 44) continue;
-            if (isSlotLocked(slot.id)) continue;
+        for (Slot slot : handler.slots) {
+            ItemStack stack = slot.getStack();
+            if (stack.isEmpty()) continue;
 
-            ItemStack itemStack = slot.getStack();
-            if (!itemStack.isEmpty() && itemsToThrow.contains(itemStack.getItem())) {
+            if (itemsToThrow.contains(stack.getItem())) {
+                if (isSlotLocked(slot.id)) continue;
+
                 client.interactionManager.clickSlot(
-                        screenHandler.syncId, slot.id, 1,
-                        SlotActionType.THROW, client.player
+                        handler.syncId,
+                        slot.id,
+                        1,
+                        SlotActionType.THROW,
+                        client.player
                 );
+                break;
             }
         }
     }
