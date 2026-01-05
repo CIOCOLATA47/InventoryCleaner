@@ -29,6 +29,7 @@ public class InventoryCleaner implements ClientModInitializer {
     private final Set<Item> itemsToThrow = new HashSet<>();
     private final Set<Integer> lockedSlots = new HashSet<>();
     private int throwDelayTicks = 20;
+    private CleaningMode mode = CleaningMode.BLACKLIST;
 
     private int tickCounter = 0;
 
@@ -41,6 +42,19 @@ public class InventoryCleaner implements ClientModInitializer {
                 cleanInventory(client);
             }
         });
+    }
+
+    public void setMode(CleaningMode mode) {
+        this.mode = mode;
+    }
+
+    public CleaningMode getMode() {
+        return mode;
+    }
+
+    public enum CleaningMode {
+        BLACKLIST,
+        WHITELIST
     }
 
     public Set<Item> getItemsToThrow() {
@@ -96,6 +110,7 @@ public class InventoryCleaner implements ClientModInitializer {
             Properties properties = new Properties();
             properties.setProperty("toggled", Boolean.toString(toggled));
             properties.setProperty("delay", String.valueOf(throwDelayTicks));
+            properties.setProperty("mode", mode.name());
 
             for (Item item : itemsToThrow) {
                 properties.setProperty(Registries.ITEM.getId(item).toString(), "true");
@@ -132,18 +147,24 @@ public class InventoryCleaner implements ClientModInitializer {
             if (properties.containsKey("delay")) {
                 try {
                     throwDelayTicks = Integer.parseInt(properties.getProperty("delay"));
-                } catch (NumberFormatException ignored) {
+                } catch (NumberFormatException ignored) {}
+            }
+
+            if (properties.containsKey("mode")) {
+                try {
+                    this.mode = CleaningMode.valueOf(properties.getProperty("mode").toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    this.mode = CleaningMode.BLACKLIST;
                 }
             }
 
             for (String key : properties.stringPropertyNames()) {
-                if (key.equals("toggled") || key.equals("delay")) continue;
+                if (key.equals("toggled") || key.equals("delay") || key.equals("mode")) continue;
 
                 if (key.startsWith("lock_")) {
                     try {
                         lockedSlots.add(Integer.parseInt(key.substring(5)));
-                    } catch (NumberFormatException ignored) {
-                    }
+                    } catch (NumberFormatException ignored) {}
                 } else {
                     Identifier id = Identifier.of(key);
                     if (Registries.ITEM.containsId(id)) {
@@ -164,24 +185,29 @@ public class InventoryCleaner implements ClientModInitializer {
     }
 
     private void cleanInventory(MinecraftClient client) {
+        if (client.player == null) return;
         if (++tickCounter % throwDelayTicks != 0) return;
-        if (tickCounter > 100000) tickCounter = 0;
 
         PlayerScreenHandler handler = client.player.playerScreenHandler;
 
-        for (Slot slot : handler.slots) {
+        for (int i = 9; i <= 44; i++) {
+            Slot slot = handler.getSlot(i);
             ItemStack stack = slot.getStack();
-            if (stack.isEmpty()) continue;
 
-            if (itemsToThrow.contains(stack.getItem())) {
-                if (isSlotLocked(slot.id)) continue;
+            if (stack.isEmpty() || isSlotLocked(slot.id)) continue;
 
+            boolean isInList = itemsToThrow.contains(stack.getItem());
+            boolean shouldThrow = false;
+
+            if (mode == CleaningMode.BLACKLIST) {
+                if (isInList) shouldThrow = true;
+            } else {
+                if (!isInList) shouldThrow = true;
+            }
+
+            if (shouldThrow) {
                 client.interactionManager.clickSlot(
-                        handler.syncId,
-                        slot.id,
-                        1,
-                        SlotActionType.THROW,
-                        client.player
+                        handler.syncId, slot.id, 1, SlotActionType.THROW, client.player
                 );
                 break;
             }

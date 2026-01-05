@@ -14,6 +14,7 @@ import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+import me.cioco.inventorycleaner.config.InventoryCleaner.CleaningMode;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -58,6 +59,12 @@ public class InventoryCleanerCommand {
                 .then(ClientCommandManager.argument("seconds", DoubleArgumentType.doubleArg(0.01))
                         .executes(InventoryCleanerCommand::setDelay)));
 
+        root.then(ClientCommandManager.literal("mode")
+                .then(ClientCommandManager.literal("blacklist")
+                        .executes(context -> setMode(context, CleaningMode.BLACKLIST)))
+                .then(ClientCommandManager.literal("whitelist")
+                        .executes(context -> setMode(context, CleaningMode.WHITELIST))));
+
         dispatcher.register(root);
     }
 
@@ -76,6 +83,13 @@ public class InventoryCleanerCommand {
         return 1;
     }
 
+    private static int setMode(CommandContext<FabricClientCommandSource> context, CleaningMode mode) {
+        inventoryCleaner.setMode(mode);
+        inventoryCleaner.saveConfiguration();
+        String color = (mode == CleaningMode.WHITELIST) ? "§b" : "§8";
+        context.getSource().sendFeedback(Text.of("§7Mode set to: " + color + mode.name()));
+        return 1;
+    }
 
     private static int addItem(CommandContext<FabricClientCommandSource> context) {
         var player = mc.player;
