@@ -1,9 +1,9 @@
 package me.cioco.inventorycleaner;
 
-import me.cioco.inventorycleaner.command.InventoryCleanerCommand;
+
 import me.cioco.inventorycleaner.config.InventoryCleaner;
+import me.cioco.inventorycleaner.gui.InventoryCleanerScreen;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.option.KeyBinding;
@@ -17,12 +17,10 @@ import static me.cioco.inventorycleaner.config.InventoryCleaner.toggled;
 public class Main implements ModInitializer {
 
     public static final String MOD_ID = "inventorycleaner";
+    public static final KeyBinding.Category CATEGORY_INVCLEANER = KeyBinding.Category.create(Identifier.of("inventorycleaner", "key_category"));
     public static KeyBinding keyBinding;
-
+    public static KeyBinding guiKeyBinding;
     private InventoryCleaner inventoryCleaner;
-
-    public static final KeyBinding.Category CATEGORY_INVCLEANER =
-            KeyBinding.Category.create(Identifier.of("inventorycleaner", "key_category"));
 
     @Override
     public void onInitialize() {
@@ -30,10 +28,14 @@ public class Main implements ModInitializer {
         inventoryCleaner = new InventoryCleaner();
         inventoryCleaner.onInitializeClient();
 
-        addCommands();
-
         keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key." + MOD_ID + ".toggle",
+                InputUtil.UNKNOWN_KEY.getCode(),
+                CATEGORY_INVCLEANER
+        ));
+
+        guiKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key." + MOD_ID + ".open_gui",
                 InputUtil.UNKNOWN_KEY.getCode(),
                 CATEGORY_INVCLEANER
         ));
@@ -50,13 +52,9 @@ public class Main implements ModInitializer {
                         false
                 );
             }
+            if (guiKeyBinding.wasPressed()) {
+                client.setScreen(new InventoryCleanerScreen(client.currentScreen, inventoryCleaner));
+            }
         });
-    }
-
-    private void addCommands() {
-        ClientCommandRegistrationCallback.EVENT.register(
-                (dispatcher, registryAccess) ->
-                        InventoryCleanerCommand.register(dispatcher, inventoryCleaner)
-        );
     }
 }

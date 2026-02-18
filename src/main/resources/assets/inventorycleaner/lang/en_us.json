@@ -1,4 +1,5 @@
 {
   "key.inventorycleaner.toggle": "InventoryCleaner Toggle",
+  "key.inventorycleaner.open_gui": "InventoryCleaner Gui toggle",
   "key.category.inventorycleaner.key_category": "InventoryCleaner"
 }
