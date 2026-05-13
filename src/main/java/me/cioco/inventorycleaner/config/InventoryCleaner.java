@@ -34,6 +34,7 @@ public class InventoryCleaner implements ClientModInitializer {
     private boolean autoOpen = false;
     private boolean inventoryOpenOnly = false;
     private CleaningMode mode = CleaningMode.BLACKLIST;
+    private int durabilityThresholdPercent = 0;
 
     private int tickCounter = 0;
     private boolean weOpenedInventory = false;
@@ -58,6 +59,8 @@ public class InventoryCleaner implements ClientModInitializer {
     public void setThrowDelayTicks(int ticks) { this.throwDelayTicks = Math.max(1, ticks); }
     public boolean isInventoryOpenOnly() { return inventoryOpenOnly; }
     public void setInventoryOpenOnly(boolean flag) { this.inventoryOpenOnly = flag; }
+    public int getDurabilityThresholdPercent() { return durabilityThresholdPercent; }
+    public void setDurabilityThresholdPercent(int pct) { this.durabilityThresholdPercent = Math.max(0, Math.min(100, pct)); }
 
     public void saveConfiguration() {
         saveConfiguration(DEFAULT_CONFIG_NAME);
@@ -75,6 +78,7 @@ public class InventoryCleaner implements ClientModInitializer {
             properties.setProperty("inventoryOpenOnly", String.valueOf(inventoryOpenOnly));
             properties.setProperty("delay", String.valueOf(throwDelayTicks));
             properties.setProperty("mode", mode.name());
+            properties.setProperty("durabilityThreshold", String.valueOf(durabilityThresholdPercent));
 
             for (Item item : itemsToThrow)
                 properties.setProperty(BuiltInRegistries.ITEM.getKey(item).toString(), "true");
@@ -119,10 +123,16 @@ public class InventoryCleaner implements ClientModInitializer {
                     this.mode = CleaningMode.BLACKLIST;
                 }
             }
+            if (properties.containsKey("durabilityThreshold")) {
+                try {
+                    durabilityThresholdPercent = Integer.parseInt(properties.getProperty("durabilityThreshold"));
+                } catch (NumberFormatException ignored) {}
+            }
 
             for (String key : properties.stringPropertyNames()) {
                 if (key.equals("toggled") || key.equals("delay") || key.equals("mode")
-                        || key.equals("autoopen") || key.equals("inventoryOpenOnly")) continue;
+                        || key.equals("autoopen") || key.equals("inventoryOpenOnly")
+                        || key.equals("durabilityThreshold")) continue;
 
                 if (key.startsWith("lock_")) {
                     try {
@@ -188,7 +198,15 @@ public class InventoryCleaner implements ClientModInitializer {
             boolean isInList = itemsToThrow.contains(stack.getItem());
             boolean shouldThrow = (mode == CleaningMode.BLACKLIST) == isInList;
 
-            if (shouldThrow) return slot;
+            if (shouldThrow) {
+                if (durabilityThresholdPercent > 0 && stack.isDamageableItem()) {
+                    int maxDmg = stack.getMaxDamage();
+                    int curDmg = stack.getDamageValue();
+                    int remainingPct = (int)(((float)(maxDmg - curDmg) / maxDmg) * 100f);
+                    if (remainingPct >= durabilityThresholdPercent) continue;
+                }
+                return slot;
+            }
         }
         return null;
     }

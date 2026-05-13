@@ -142,17 +142,35 @@ public class InventoryCleanerScreen extends Screen {
                 config.getMode() == InventoryCleaner.CleaningMode.WHITELIST,
                 v -> { config.setMode(v ? InventoryCleaner.CleaningMode.WHITELIST : InventoryCleaner.CleaningMode.BLACKLIST); config.saveConfiguration(); });
 
-        addSlider(rightCol, y, 150, "Drop Delay", config.getThrowDelayTicks() / 20.0f, 0.05f, 2.0f, v -> {
-            config.setThrowDelayTicks(Math.max(1, (int)(v * 20f)));
-            config.saveConfiguration();
-        });
+        addSlider(rightCol, y, 150, "Drop Delay",
+                config.getThrowDelayTicks() / 20.0f, 0.05f, 2.0f, "%.2fs",
+                v -> {
+                    config.setThrowDelayTicks(Math.max(1, (int)(v * 20f)));
+                    config.saveConfiguration();
+                });
         y += SPACING_Y;
+
 
         addToggle(leftCol, y,
                 "Inventory Open",
                 "When enabled, automatically opens inventory, throws, then closes.",
                 config.isInventoryOpenOnly(),
                 v -> { config.setInventoryOpenOnly(v); config.saveConfiguration(); });
+
+        addSlider(rightCol, y, 150, "Durability Threshold",
+                config.getDurabilityThresholdPercent(), 0f, 100f, "%d%%",
+                v -> {
+                    config.setDurabilityThresholdPercent(Math.round(v));
+                    config.saveConfiguration();
+                });
+
+        scrollableWidgets.get(scrollableWidgets.size() - 1)
+                .setTooltip(Tooltip.create(Component.literal(
+                        "§cOnly affects damageable items (tools/armor).\n" +
+                                "§7Set above 0% to only throw items below\n" +
+                                "§7that remaining durability percentage.\n" +
+                                "§80% = disabled (throw regardless of durability)")));
+
         y += SPACING_Y + SECTION_MARGIN;
 
         itemsLabelBaseY = y;
@@ -404,8 +422,8 @@ public class InventoryCleanerScreen extends Screen {
 
         String modeLabel = itemMode
                 ? (config.getMode() == InventoryCleaner.CleaningMode.WHITELIST
-                ? "§bWHITELIST §r- click slots to add/remove items"
-                : "§7BLACKLIST §r- click slots to add/remove items")
+                   ? "§bWHITELIST §r- click slots to add/remove items"
+                   : "§7BLACKLIST §r- click slots to add/remove items")
                 : "§6LOCKED SLOTS §r- click slots to lock/unlock";
         ctx.centeredText(font, Component.literal(modeLabel), cx, 64, 0xFFFFFFFF);
         ctx.centeredText(font, Component.literal("§8" + (itemMode
@@ -509,10 +527,19 @@ public class InventoryCleanerScreen extends Screen {
 
         if (hovered) {
             ctx.fill(px + 1, py + 1, px + SLOT_SIZE - 2, py + SLOT_SIZE - 2, SLOT_HOVER);
-            if (!stack.isEmpty())
-                hoverTooltip = stack.getHoverName().getString() + (isActive ? (itemMode ? " §a[In List]" : " §6[Locked]") : "");
-            else if (!itemMode)
+            if (!stack.isEmpty()) {
+                String durInfo = "";
+                if (stack.isDamageableItem()) {
+                    int maxDmg = stack.getMaxDamage();
+                    int remaining = (int)(((float)(maxDmg - stack.getDamageValue()) / maxDmg) * 100f);
+                    durInfo = " §7[" + remaining + "% durability]";
+                }
+                hoverTooltip = stack.getHoverName().getString()
+                        + (isActive ? (itemMode ? " §a[In List]" : " §6[Locked]") : "")
+                        + durInfo;
+            } else if (!itemMode) {
                 hoverTooltip = "Slot " + vanillaSlot + (isActive ? " §6[Locked]" : " §7[Unlocked]");
+            }
         }
     }
 
@@ -658,7 +685,6 @@ public class InventoryCleanerScreen extends Screen {
         addRenderableWidget(w);
     }
 
-
     private void addToggle(int x, int y, String label, String tooltip, boolean value, Consumer<Boolean> action) {
         boolean[] state = {value};
         Button btn = Button.builder(toggleText(label, state[0]), b -> {
@@ -679,8 +705,14 @@ public class InventoryCleanerScreen extends Screen {
                         : Component.literal("OFF").withStyle(ChatFormatting.DARK_GRAY));
     }
 
-    private void addSlider(int x, int y, int w, String label, float cur, float min, float max, Consumer<Float> action) {
-        addScrollableWidget(new GenericSlider(x, y, w, 20, label, cur, min, max, action));
+    private void addSlider(int x, int y, int w, String label, float cur, float min, float max,
+                           String format, Consumer<Float> action) {
+        addScrollableWidget(new GenericSlider(x, y, w, 20, label, cur, min, max, format, action));
+    }
+
+    private void addSlider(int x, int y, int w, String label, float cur, float min, float max,
+                           Consumer<Float> action) {
+        addSlider(x, y, w, label, cur, min, max, "%.2fs", action);
     }
 
     private void drawPanel(GuiGraphicsExtractor ctx, int x, int y, int w, int h) {
@@ -780,16 +812,26 @@ public class InventoryCleanerScreen extends Screen {
     private class GenericSlider extends AbstractSliderButton {
         private final String label;
         private final float  min, max;
+        private final String format;
         private final Consumer<Float> callback;
 
-        GenericSlider(int x, int y, int w, int h, String label, float cur, float min, float max, Consumer<Float> callback) {
+        GenericSlider(int x, int y, int w, int h, String label, float cur, float min, float max,
+                      String format, Consumer<Float> callback) {
             super(x, y, w, h, Component.empty(), (double)(cur - min) / (max - min));
-            this.label = label; this.min = min; this.max = max; this.callback = callback;
+            this.label = label; this.min = min; this.max = max;
+            this.format = format; this.callback = callback;
             updateMessage();
         }
 
         @Override protected void updateMessage() {
-            setMessage(Component.literal(label + ": §c" + String.format("%.2fs", min + (float)(value * (max - min)))));
+            float val = min + (float)(value * (max - min));
+            String formatted;
+            if (format.contains("d")) {
+                formatted = String.format(format, Math.round(val));
+            } else {
+                formatted = String.format(format, val);
+            }
+            setMessage(Component.literal(label + ": §c" + formatted));
         }
 
         @Override protected void applyValue() {
