@@ -167,9 +167,9 @@ public class InventoryCleaner implements ClientModInitializer {
             return;
         }
 
-        boolean inventoryWasOpen = client.screen instanceof InventoryScreen;
+        boolean inventoryWasOpen = client.gui.screen() instanceof InventoryScreen;
         if (!inventoryWasOpen) {
-            client.setScreen(new InventoryScreen(client.player));
+            client.setScreenAndShow(new InventoryScreen(client.player));
             weOpenedInventory = true;
         }
 
@@ -212,8 +212,8 @@ public class InventoryCleaner implements ClientModInitializer {
     }
 
     private void maybeCloseInventory(Minecraft client) {
-        if (weOpenedInventory && client.screen instanceof InventoryScreen) {
-            client.setScreen(null);
+        if (weOpenedInventory && client.gui.screen() instanceof InventoryScreen) {
+            client.setScreenAndShow(null);
         }
         weOpenedInventory = false;
     }

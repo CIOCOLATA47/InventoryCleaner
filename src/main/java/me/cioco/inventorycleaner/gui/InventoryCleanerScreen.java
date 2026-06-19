@@ -663,7 +663,7 @@ public class InventoryCleanerScreen extends Screen {
     @Override
     public void onClose() {
         config.saveConfiguration();
-        if (minecraft != null) minecraft.setScreen(parent);
+        if (minecraft != null) minecraft.setScreenAndShow(parent);
     }
 
     private Button addTabButton(String label, int tabIndex, int x, int y, int w, int h) {

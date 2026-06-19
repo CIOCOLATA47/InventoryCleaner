@@ -55,7 +55,7 @@ public class Main implements ModInitializer {
                 );
             }
             if (guiKeyBinding.consumeClick()) {
-                client.setScreen(new InventoryCleanerScreen(client.screen, inventoryCleaner));
+                client.setScreenAndShow(new InventoryCleanerScreen(client.gui.screen(), inventoryCleaner));
             }
         });
     }
